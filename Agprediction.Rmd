@@ -1,0 +1,184 @@
+---
+title: "Agprediction"
+output: html_document
+date: "`r Sys.Date()`"
+runtime: shiny
+---
+## Crop Prediction Markdown {.tabset}
+
+
+Format the data set get it ready for processing and EDA understand each element and make each element understandable to others it is **imperative** that is done. I want to show the code so you see how i was able to view it an understand it.  
+```{r setup, include=FALSE, echo = TRUE }
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(shiny)
+
+agdf<-data.frame(read.csv("Crop_recommendation.csv"))
+head(agdf)
+colnames(agdf)
+agdf<-rename(agdf, Nitrogen = N, Phosphorus = P, Potassium = K, acidity = ph)
+#check to see if there are any zeros/ missing values in the data 
+sum(is.na(agdf))
+#[0] there are none 
+
+#find all unique values of labels 
+unique_values<- unique(agdf$label)
+print(unique_values)
+# rice , maize , soyabeans, peas , groundnuts, cowpeas, banana, mango, grapes , watermelon, apple, orange, cotton , coffee 
+
+```
+
+
+Now that we have a good understanding of the data and what is in it we can move on. I'm no farmer but i am a stats person... so what i can do is by using the average conditions of each crop i can make out what would be considered the right conditions for that crop to grow. it will have to be based on a multivariate predictor model i think **rainfall,temperature,N,P,and K** will be good determinates for this. Now the hard part extracting each value into its own data frame by taking its indexes and collecting the same indexes from the other rows and putting it into one data.frame. Since doing every single crop would take forever lets cut it down to the top 3(of this dataset): *\ Corn, Rice and Soybeans \*
+
+## Crop Results {.tabset}
+### Rice info
+`Here is the Rice Data Preview and Summary for each column` 
+Now that we see the values of median and mean for rice we can choose either to use as a base point since both are so close. 
+```{r sift data, echo=FALSE, eval = TRUE, }
+
+rice<- which(agdf$label == "rice") 
+ricedf<-c()
+for(index in rice){
+  Nitro <- array(unlist(agdf$Nitrogen[c(rice)]))
+  Phospho<- array(unlist(agdf$Phosphorus[c(rice)]))
+  Potas<- array(unlist(agdf$Potassium[c(rice)]))
+  Temp<- array(unlist(agdf$temperature[c(rice)]))
+  Rain<- array(unlist(agdf$rainfall[c(rice)]))
+  Label<-array(unlist(agdf$label[c(rice)]))
+  ricedf <- data.frame(Nitro,Phospho,Potas,Temp,Rain,Label )
+  
+  ricedf<- ricedf%>% mutate(Cropencoded = case_when(ricedf$Label == "rice"~1)) 
+                                                        
+ricedf$Label<-(NULL)
+}
+head(ricedf)
+summary_df<- summary(ricedf)
+rmean_value<- summary_df[3,]
+rmedian_value<- summary_df[4,]
+print(rmean_value)
+print(rmedian_value)
+#now we got rice all sorted out time to do the same for the other two now the easy part copy and past the code 
+
+```
+### Corn info
+Similar to the rice tab we can now view the averages with the corn data 
+
+```{r, echo=FALSE}
+Corn<- which(agdf$label == "maize") 
+corndf<-c()
+for(index in Corn){
+  Nitro <- array(unlist( agdf$Nitrogen[c(Corn)]))
+  Phospho<-array(unlist( agdf$Phosphorus[c(Corn)]))
+  Potas<-array(unlist( agdf$Potassium[c(Corn)]))
+  Temp<-array(unlist(agdf$temperature[c(Corn)])) 
+  Rain<-array(unlist(agdf$rainfall[c(Corn)]))
+  Label<-array(unlist( agdf$label[c(Corn)]))
+  corndf<- data.frame(Nitro,Phospho,Potas,Temp,Rain,Label)
+  
+  corndf<- corndf%>% mutate(Cropencoded = case_when(corndf$Label == "maize" ~ 2)) 
+corndf$Label<-(NULL)
+}
+head(corndf)
+csummary_df<- summary(corndf)
+cmean_value<- csummary_df[3,]
+cmedian_value<- csummary_df[4,]
+print(cmean_value)
+print(cmedian_value)
+#now onto create a tab for Soybeans 
+```
+### Soybean info 
+Now we have the Soybean averages 
+```{r, echo=FALSE}
+Soybean<- which(agdf$label == "Soyabeans") 
+soybdf<-c()
+for(index in Soybean){
+  Nitro <- array(unlist(agdf$Nitrogen[c(Soybean)]))
+  Phospho<- array(unlist( agdf$Phosphorus[c(Soybean)]))
+  Potas<-array(unlist( agdf$Potassium[c(Soybean)]))
+  Temp<-array(unlist( agdf$temperature[c(Soybean)]))
+  Rain<-array(unlist( agdf$rainfall[c(Soybean)]))
+  Label<-array(unlist( agdf$label[c(Soybean)]))
+  soybdf<- data.frame(Nitro,Phospho,Potas,Temp,Rain,Label)
+  
+  soybdf<- soybdf%>% mutate(Cropencoded = case_when( soybdf$Label== "Soyabeans"~3)) 
+soybdf$Label<-(NULL)
+}
+head(soybdf)
+ssummary_df<- summary(soybdf)
+smean_value<- ssummary_df[3,]
+smedian_value<- ssummary_df[4,]
+print(smean_value)
+print(smedian_value)
+
+```
+
+Now lets create the model and get a some prediction going to determine what kind of crops we should grow based on our farm conditions. We obviously need a range of values for each crop so there can be a good assumption on what to grow and in special cases maybe even possibilities of having two options. 
+
+### Predictive Modeling 
+
+```{r, input chunk, echo = FALSE }
+# now we know what to expect for each crop given we can see the averages to help us guess now we can build our predictive model 
+
+numericInput("Nitro","Nitrogen", value = 0)
+numericInput("Phospho","Phosphorus", value = 0)
+numericInput("Potas","Potassium", value = 0 )
+numericInput("Temp", "Temperature", value = 0 )
+numericInput("Rain", "Rainfall", value = 0)
+
+
+user_values<- reactive({
+  data.frame( 
+    Nitrogen = input$Nitro,
+    Phosphorus = input$Phospho, 
+    Potassium = input$Potas,
+    Temperature = input$Temp, 
+    Rainfall = input$Rain
+    )
+})
+# model functioning with data partitioning now so we can train and test the model 
+
+predict_model<- function(all_data,conditions){
+   
+   model<- lm(Cropencoded~Nitro+Phospho+Potas+Temp+Rain,data = all_data)
+   
+  predictions_crop<- predict(model ,newdata = conditions)
+ 
+ predictcrop<- ifelse(predictions_crop>= 0 & predictions_crop<=1.49,"rice",ifelse(predictions_crop>1.49 & predictions_crop<=2.49,"corn",ifelse(predictions_crop> 2.49,"Soybean","Other"))) 
+ 
+ return(predictcrop)
+
+}
+
+output_text<- reactive({
+  all_data<-data.frame(bind_rows(ricedf,corndf,soybdf))
+  new_all_data<- all_data 
+  new_all_data$Label<-NULL
+  new_all_data$Cropencoded<-NULL
+  conditions <- user_values()
+  colnames(conditions)<-colnames(new_all_data)
+  predicted_crop<- predict_model(all_data,conditions)
+  # format output 
+  output<- paste("Based on the conditions entered: ")
+  output<- c(output, "Nitrogen: ", conditions$Nitrogen)
+  output<- c(output, "Phosphorus: ", conditions$Phosphorus)
+  output<- c(output, "Potassium: ",conditions$Potassium)
+  output<- c(output, "Temperature: (C)", conditions$Temperature)
+  output<- c(output, "Rainfall: (in.) ,", conditions$Rainfall)
+  output<- c(output, " ")
+  output<- c(output, "The predicted crop is: ")
+  output<- c(output, predicted_crop)
+  
+  output
+})
+
+#Render the output 
+renderText({
+  output_text()
+})
+```
+
+
