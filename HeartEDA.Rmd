@@ -22,7 +22,7 @@ library(shinydashboard)
 library(shiny)
 library(plotly)
 library(gapminder)
-setwd("C:/Users/ECYA1QY/OneDrive - Deere & Co/Documents/Rprogrammincourse2")
+
 #load in data set  
 heart_dis_df<- data.frame(read_csv('heart.csv'))
 #see what data type each column is 
