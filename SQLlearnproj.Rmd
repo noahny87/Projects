@@ -54,8 +54,8 @@ res
 # now to use SQL in R 
 ```
 ```{sql connection=con, output.var = "M1_results"}
-SELECT who.country, population.population ,who.year
-FROM who, population
+SELECT population.population,who.year,who.country 
+FROM who, population WHERE who.country = "France" AND who.year >= 1980 
 
  
 ```
