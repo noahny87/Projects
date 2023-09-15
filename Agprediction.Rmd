@@ -6,8 +6,6 @@ runtime: shiny
 ---
 ## Crop Prediction Markdown {.tabset}
 
-
-Format the data set get it ready for processing and EDA understand each element and make each element understandable to others it is **imperative** that is done. I want to show the code so you see how i was able to view it an understand it.  
 ```{r setup, include=FALSE, echo = TRUE }
 knitr::opts_chunk$set(echo = TRUE)
 library(caret)
