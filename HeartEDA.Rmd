@@ -103,21 +103,6 @@ include_graphics("ST-segment-depression-upsloping-downsloping-horizontal.png")
 What we can conclude from this graph is that people with a Flat ST Slope are **more likely** to have Heart Disease along with People with a Downward sloping ST Slope.
 
 
-### Age Blood Pressure and Heart Disease cor. 
-```{r Age vs Blood Pressure vs Heart Disease,echo=FALSE,message=FALSE}
-#Lets make a graph graphing the age vs blood pressure in a scatter plot and have them be filled in by Heart Disease Y or N 
-plott <- ggplot(data = heart_dis_df, aes(RestingBP, fill = HDYN)) +
-  geom_point(position = "stack", stat = "count", aes(text = paste("Age: ", Age, "<br>Resting BP: ", RestingBP)), size = 2.5) +
-  labs(title = "Age vs BloodPressure- HD cor.", xlab = "RestingBP", ylab = "Count") +
-  scale_fill_manual(values = c("Y" = "yellow", "N" = "blue"))
-
-ggplotly(plott)
-
-```
-
-There is a weak correlation between age, blood pressure and if there is heart disease or not. At the top of each line is where the younger ages are and its noticeable more blue is around that area meaning less heart disease. 
-
-
 ### Clustering 
 This graph shows the clusters of Age, Cholesterol, Heart Disease and Chest pain type 1 being low pain/ no pain and 4 being typical anginal pain during EKG testing. 
 
