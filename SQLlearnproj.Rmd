@@ -62,6 +62,14 @@ FROM who, population WHERE who.country = "France" AND who.year >= 1980
 
 now open an R chunk and past the output variables name
 ```{r}
-(M1_results)
+countryy<-function(string,output){
+if (string %in% output){
+ print ("country is in Database")}
+else{
+  print("Country is not in Database")
+}
+  }
+countryy("France",M1_results$country)
+
 ```
 
