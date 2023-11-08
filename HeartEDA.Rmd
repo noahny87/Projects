@@ -1,0 +1,182 @@
+---
+title: "Heart EDA and prediction"
+author: "Noah Nyland"
+date: "`r Sys.Date()`"
+output: html_document
+runtime: shiny
+fontsize: 16pt
+---
+
+```{r setup, include=FALSE,}
+knitr::opts_chunk$set(comment = NA,warning = FALSE)
+#set wd to correct one if this restarts 
+```
+## Heart Disease EDA {.header}
+This document will help predict if you have heart disease and what to look for in tests to determine if you have a heart disease 
+```{r load everyhting needed, include=FALSE,echo=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(shinydashboard)
+library(shiny)
+library(plotly)
+library(gapminder)
+
+#load in data set  
+heart_dis_df<- data.frame(read_csv('heart.csv'))
+#see what data type each column is 
+head(heart_dis_df)
+
+
+```
+
+```{r feature engineering changing data, echo=FALSE,include=FALSE}
+#lets one hot encode our Y/N column since we know those are the only values in that column , 1 = Y, 0 = N
+heart_dis_df<- heart_dis_df%>% mutate(Exercise.AnginaNum = case_when(heart_dis_df$ExerciseAngina == "Y"~1,
+            heart_dis_df$ExerciseAngina== "N"~0))
+head(heart_dis_df)
+#now we have one of the columns one hot encoded time for the next Rest ECG 
+#but first we have to see all of its unique values 
+unique_values<- unique(heart_dis_df$RestingECG)
+print(unique_values)
+# only 3 dif values thats easy "Normal" , "ST","LVH" 
+#Lets do Normal = 1, ST = 2 , LVH = 3 
+heart_dis_df<- heart_dis_df%>% mutate(ECGval = case_when(heart_dis_df$RestingECG == "Normal"~1, 
+        heart_dis_df$RestingECG == "ST"~2,
+        heart_dis_df$RestingECG == "LVH"~3))
+head(heart_dis_df$ECGval)
+#Great now we have that done we can do some EDA 
+```
+
+## Analysis {.tabset}
+### Who has Heart Disease 
+ This tab looks at what sex has more heart disease according to the data set 
+From this we can see Men are more likely to have heart disease than women according to this study
+```{r what do ppl with heart disease have?, echo=FALSE}
+
+#Lets make some simple plots to see what heart disease folks have in common 
+heart.plot<- ggplot(heart_dis_df,mapping = aes(HeartDisease,,fill = Sex))+geom_histogram(bins = 39) 
+
+ggplotly(heart.plot)
+
+#what we know from the graph is that more men than women are in the data sets 
+#and we can see men are more susceptible to heart disease than women 
+mentot<- 267+458 
+menh<- 267/mentot
+ment<- 267/(mentot+143+50)
+cat("Total men: ",mentot,"\n","Men with disease %: ", ment*100, " of the total dataset","\n","% Of Men with HD in men only",menh*100,"\n")
+ wmentot<- 143+50 
+ wmnh<- 50 / wmentot
+ wmnt<- 50/(mentot+143+50) 
+cat("Total women: ",wmentot,"\n","Women with disease %: ",wmnt*100,"of the total dataset","\n","% of women with HD in women only", wmnh* 100)
+
+```
+
+
+### ST slope compared to Heart Disease 
+ What Does each ST slope mean and via the graph we can see how each slope relates to Heart Disease. 
+ What can we take away? 
+ Up Slope : Is completely normal during physical activity and should have no worries 
+ Down Slope: Down sloping ST can mean a multitude of things - the more common things are - Dioxgin, hypolakemia, Heart failure, Supraventricular tachycardia, and Hyperventilation can cause it as well. 
+ Flat Slope: Flat Slope can mean similar things to Down Slope with the addition of acute ischemia and good indicator of a patient with Coronary Artery Disease. 
+ 
+ [ST Slope meaning](https://ecgwaves.com/topic/ecg-st-segment-depression-ischemia-infarction-differential-diagnoses/) ,
+ [ST slope meaning pt2](https://litfl.com/st-segment-ecg-library/) ,
+ [ST slope meaning pt3](https://drsvenkatesan.com/2009/09/04/what-is-upsloping-st-depression-how-do-you-measure-it-what-is-the-clinical-significance/)
+ 
+```{r Heart disease Based on ST values , echo=FALSE,fig.cap="This picture will help understand ST slopes and significance",out.width='75%',out.height='75%',message=FALSE}
+#create a plot graph on ST slope and Heart Disease to see which ones are more closely linked to heart disease 
+#need to do some feature engineering now to ST Slope 
+#Encode Heart Disease 1 and 0 to Y an N so it will graph them correctly 
+library(knitr)
+heart_dis_df<- heart_dis_df%>% mutate(HDYN = case_when(heart_dis_df$HeartDisease == 1 ~'Y',
+                                                       heart_dis_df$HeartDisease == 0 ~'N'))
+
+p<- ggplot(data = heart_dis_df, mapping = aes(x=as.factor(ST_Slope),fill = HDYN))+
+  geom_histogram(stat = "count")+
+  labs(title = "Heart Disease vs ST Slope", xlab = "Slope of ST",ylab = "Count of People with HD")
+ggplotly(p)
+include_graphics("ST-segment-depression-upsloping-downsloping-horizontal.png")
+```
+
+What we can conclude from this graph is that people with a Flat ST Slope are **more likely** to have Heart Disease along with People with a Downward sloping ST Slope.
+
+
+### Clustering 
+This graph shows the clusters of Age, Cholesterol, Heart Disease and Chest pain type 1 being low pain/ no pain and 4 being typical anginal pain during EKG testing. 
+
+
+First Graph is depicting the amount of clusters needed where we can see that its leaning around 3-4 clusters so I went with 4. Usually provides a bit more accuracy the more clusters you have (not always!!).
+
+```{r Cluster Groups , echo=FALSE,message=FALSE}
+library(factoextra)
+library(cluster)
+library(ClusterR)
+library(tibble)
+library(GGally)
+
+#create a clustering model based on our data on certain columns we want clustered 
+# for ours we could base it on Age,Blood Pressure, Chest Pain type, CHolestorol and Heart Disease Y/N 
+
+
+heart.df<-data.frame(Age=heart_dis_df$Age,Chest.Pain=heart_dis_df$ChestPainType,Cholest=heart_dis_df$Cholesterol,HD=heart_dis_df$HeartDisease)
+#we could scale the data but it might be difficult to do so , so we can go with what we have and see how it plays out we probably should encode chest pain type as clusters arent fans of words 
+
+#ordered in Pain from no symptoms to worst 
+heart.df<-heart.df%>%mutate(Chest.Pain = case_when(heart.df$Chest.Pain == "ATA"~3,
+      heart.df$Chest.Pain == "NAP"~2,
+      heart.df$Chest.Pain == "ASY"~1,
+      heart.df$Chest.Pain == "TA"~4))
+
+t<-colSums(is.na(heart.df))
+O<-na.omit(heart.df)
+#get rid of zero cholestorol 
+heart.df<-subset(heart.df,Cholest != 0)
+# check how many clusters we should have 
+p<-fviz_nbclust(heart.df,kmeans, method = "wss")
+
+p
+#Looks to be about 4 clusters will be good to use for clusters 
+#lets cluster 
+km<- kmeans(heart.df,centers = 4)
+#km
+
+
+#after viewing this we do have some Na values in CHolestoral - since we have such a big sample size we can omit the NA rows so we can get more accurate prediction - im going to add the code up top for omitting NA - it doesnt show any NA but we know people cant have a "0" cholestorol 
+
+q<-fviz_cluster(km,data = heart.df)
+ggplotly(q)
+cluster.mean<-aggregate(heart.df, by = list(cluster = km$cluster),mean)
+print(cluster.mean)
+# this code creates the centroids of each cluster makiing it a bit more visualy appealing 
+cluster.mean$cluster<-with(cluster.mean,paste(cluster,sep="-"))
+#the code below plots the cluster centroid graph 
+z<-ggparcoord(cluster.mean,columns = (2:4), groupColumn =1 )+
+  labs(title = "Parallel Centroids of Columns",x ="Dimension 1",y ="Dimension 2")
+ggplotly(z)
+```
+The cluster graph with means below it shows each cluster and how they relate based on 2 principle components representing most of the data 
+
+```{r pcs using rtf, echo=FALSE,message=FALSE}
+#load random forest packages 
+library(randomForest)#for rf model 
+library(varImp)# adjusts for correlation between predictors 
+
+#create the model
+model<- randomForest(km$cluster ~ Cholest+Age+Chest.Pain+HD,data = heart.df,ntree = 700,importance = TRUE)
+# print the mean decerase accuracy 
+importance(model,type = 1)
+importance(model,type = 2)
+# plot using varImpplot 
+
+varImpPlot(model,sort = F,main = "Variable Importance Plot")
+
+#generates a variable importance plot 
+```
+The Higher the value the more important the variable becomes is what we can take away from these outputs helping us find what two dimensions are more important age being the most important ( IncMSE is the more robust and trusted way for telling accuracy). Based on the importance values we can determine the two dimensions being measured to make each cluster are Cholesterol and Age since it bases more so in IncMSE. 
+
+
+
+
+
