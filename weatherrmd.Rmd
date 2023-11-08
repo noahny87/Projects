@@ -1,0 +1,160 @@
+---
+title: "Weather Prediction"
+author: "Noah Nyland"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+runtime: shiny
+font: 20pt
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE,message = FALSE)
+library(shiny)
+library(shinydashboard)
+library(flexdashboard)
+#Set wd to correct directory for this 
+```
+
+```{r feature engineering as mentioned in the chunk below, echo=FALSE,message=FALSE,include=FALSE}
+
+# Here is where i will feature engineer some of the varaibles to make them less unique and more clumped together since things like Freezing rain and Drizzle snow are essentially the same 
+weather_df<- data.frame(read.csv("Weather Data.csv"))
+#find all unique values 
+unique(weather_df$Weather)
+#theres 50 diff values - things like "Freezing Rain Snow Grains" cna be changed to "Sleet/snow"
+
+#Freezing rain = Sleet
+weather_df$Weather<-gsub("Freezing Rain","Sleet",as.character(weather_df$Weather))
+#Freezing Drizzle = Sleet
+weather_df$Weather<-gsub("Freezing Drizzle","Sleet",as.character(weather_df$Weather))
+#lets see where we are now
+unique(weather_df$Weather)
+sleet<-c("Rain,Snow","Drizzle,Snow","Drizzle,Ice Pellets","Snow,Ice Pellets","Rain Ice Pellets","Ice Pellets")
+weather_df$Weather<-gsub(sleet,"Sleet",as.character(weather_df$Weather))
+unique(weather_df$Weather)
+
+```
+
+
+
+
+```{r weather pred,echo=FALSE,message=FALSE,include=FALSE}
+library(shiny)
+library(rpart)
+library(tidyverse)
+library(caret)
+
+#data frame 
+# i am going to predict weather based on regression analysis 
+#make a data partition 
+indexes<- createDataPartition(weather_df$Weather, p = .95, list = F)
+trainset<-weather_df[indexes,]
+testset<- weather_df[-indexes,]
+
+set.seed(12)
+tree_init<- rpart(Weather~Temp_C+Rel.Hum_.+Wind.Speed_km.h+Visibility_km+Press_kPa,data = trainset,control = rpart.control(cp = .0001))
+#now that the tree is made we can use the lowest cp factor to determine predictions 
+best<- tree_init$cptable[which.min(tree_init$cptable[,"xerror"]),"CP"]
+# the lowest "xerror" value is synonymous with lowest cp value in the cp table so using that index will get the value for it 
+#now we can prune the tree to make it more accurate 
+prune_tree<- prune(tree_init, cp = best)
+# test accuracy
+testest<-data.frame(Temp_C= 8.8,Rel.Hum_. = 86,Wind.Speed_km.h = 4,Visibility_km = 30,Press_kPa = 99.65)
+pred<- predict(prune_tree,testset,type = "class")
+pred
+checkin<-data.frame(testset,pred)
+#check test accuracy using confusion matrix
+c<-confusionMatrix(as.factor(testset$Weather),pred)
+c
+#now that feature engineering is done we can retest the model to see its accuracy 
+#about 44% so about 4% increase in accuracy from before FE 
+#this could be due to how similar some conditions are it become very difficult for the model to find out whats what 
+
+```
+
+```{r feature engineering , echo=FALSE,message=FALSE,include=FALSE}
+# after the initial test we need to do some serious feature engineering since the model is only 44% accurate - there are too many vairables with only one instance i.e. Freezing Rain, Ice Pellets,Fog - is one weather forecast 
+weather_df$Weather<-gsub("Freezing Rain","Sleet",as.character(weather_df$Weather))
+ #Freezing Drizzle = Sleet
+ weather_df$Weather<-gsub("Freezing Drizzle","Sleet",as.character(weather_df$Weather))
+ sleet<-c("Rain,Snow","Drizzle,Snow","Drizzle,Ice Pellets","Snow,Ice Pellets","Rain Ice Pellets","Ice Pellets")
+ Sleet<-c("Sleet")
+weather_df$Weather<-gsub("Ice Pellets",Sleet,as.character(weather_df$Weather))
+unique(weather_df$Weather)
+#feature engineering may take a while since its subjective
+weather_df$Weather<-gsub("Rain Showers","Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Snow Showers","Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Moderate Snow","Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Sleet,Snow Grains","Sleet,Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Snow,Blowing Snow","Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Drizzle,Fog","Rain,Fog",as.character(weather_df$Weather))
+weather_df$Weather<- gsub("Drizzle","Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Thunderstorms,Rain Showers","Thunderstorms,Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Thunderstorms,Moderate Rain Showers,Fog","Thunderstorms,Rain,Fog", as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Rain Showers","Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Snow Pellets","Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Moderate Rain","Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Rain,Sleet","Rain",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Sleet Grains","Sleet",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Sleet,Sleet","Sleet",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Moderate Snow","Snow",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Rain,Snow","Sleet",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Sleet,Snow","Snow,Sleet",as.character(weather_df$Weather))
+weather_df$Weather<-gsub("Rain,Snow","Sleet",as.character(weather_df$Weather))
+unique(weather_df$Weather)
+#now the feature engineering is complete to make classification more simple for our model 
+```
+
+
+## Weather Predictions {.tabset}
+### Predicting based on Conditions
+```{r Quaity of day , echo = FALSE,fig.align='right'}
+library(htmltools)
+numericInput("Temp_C","Temperature in Celsius",20,min = -50,max = 60)
+numericInput("Rel.Hum_.","Relative Humidity %",85,min = 0,max = 100)
+numericInput("Wind.Speed_km.h"," Wind Speed in Km/h",5,min = 0,max = 100)
+numericInput("Visibility_km","Visibility in KM",30,min = 0,max = 50)
+numericInput("Press_kPa","Air Pressure in kPa",101)
+
+uservalues<-reactive({data.frame(Temperature= input$Temp_C,
+                                 RelativeHumidity = input$Rel.Hum_.,
+                                 WindSpeed= input$Wind.Speed_km.h,
+                                 Visibility = input$Visibility_km,
+                                 PressinkPa = input$Press_kPa)})
+
+predict_model<-function(conditions){
+  preddata<-predict(prune_tree,newdata=conditions,type = "class")
+  checkdata<-data.frame(conditions,preddata)
+  paste0(checkdata$preddata)
+}
+```
+
+```{r echo=FALSE}
+output_text<-reactive({ 
+  new_data<-trainset
+  new_data$Weather<-NULL
+  new_data$Date.Time<-NULL
+  new_data$Dew.Point.Temp_C<-NULL
+  conditions<-uservalues()
+  colnames(conditions)<-colnames(new_data)
+ 
+  output<-paste(c("The Weather Prediction is:", predict_model(conditions)))
+ output
+  
+  
+})
+renderText({ 
+  
+  output_text()
+ })
+
+```
+
+
+
+
+
+
