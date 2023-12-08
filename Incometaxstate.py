@@ -29,30 +29,6 @@ State = input()
 print("Enter income")
 salary = float(input())
 # Find the state to get the values for tax whether its high or low 
-'''
-def tax_func(state,income):
-    lowtaxrate = df.at[index_state,'Low Tax(%)']
-    hightaxrate= df.at[index_state,"High Tax(%)"]
-    if state in df['State'].values:
-        index_state = df.index[df['State']==state][0]
-        if ( income <= 175781.23):
-            lt = df[['Low Tax(%)']]
-            tax_paidl = lowtaxrate* income 
-            if( tax_paidl == 0):
-               print("You do not have any income tax")
-            else:   
-                 print("Heres how much you pay in taxes: ",tax_paidl)
-        else:
-             tax_paidh = hightaxrate*income
-        if( tax_paidh == 0):
-                  print( "You do not have any income tax")
-        else:  
-                    print("Heres How much you pay in taxes: ",tax_paidh)
-    else: 
-            print("invalid State entered")
-tax_func(State,salary)
-'''
-
 
 def tax_func(state, income):
     # Check if the state exists in the DataFrame
