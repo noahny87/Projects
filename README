@@ -1,13 +1,13 @@
 Welcome to my Github Repo hopefully this README finds you well and helps you with the navigation through my repo! 
 
-Starting off 
+
 Agprediction.Rmd 
 - Created a multiple Linear regression model based around 3 crops corn, soybean and rice using packages from tidyverse and caret
 - Used different demographic data of each crop to predict what a field should plant based on the levels of Potassium , Nitrogen and Phosphorus 
 - along with this there were geographic levels to this like rain which was big predictor in deciding what to plant. 
 - The data set for this is Crop_recommendation.csv obtained from Kaggle 
 
-Next 
+
 HeartEDA.Rmd 
 - This is an exploratory data analysis looking into Ischaemic heart disease and how to predict it based on various factors such as chest pain , ECG values and ST slopes
 - Hard project since I had to learn medical termonology and what means what. 
@@ -15,14 +15,14 @@ HeartEDA.Rmd
 - created different analysis of the data using packages like tidyverse , plotly, caret, randomForest, cluster and factoextra 
 - data set used for this project is heart.csv 
 
-Next 
+
 Incometaxstate.py 
 - this is a python file where i created the data set by gathering tax rates from all states in both the high and low brackets 
 - Made a function where user inputs state and salary and it will output how much is taken out in taxes 
 - first project where I did everything myself from data collection to creation 
 - data used is Book1.csv 
 
-Next 
+
 MedicalinsuranceModel.R 
 - This project is a script in R where i created a model to predict the medical insurance payments of a person based on multiple factors 
 - factors such as: age, bmi, # of children, region, current charge, sex, and if they are a smoker or not 
@@ -30,7 +30,7 @@ MedicalinsuranceModel.R
 - used packages like caret, tidyverse, ggpairs 
 - data set used for this is Medical_insurance.csv obtained from Kaggle 
  
-Finally 
+
 weatherrmd.Rmd 
 - This project is the most difficult where i predicted the weather for the day based on multiple factors 
 - factors such as Date/Time , Temperature, Humidity, Wind Speed , Visibility, Dew point, and Air pressure
@@ -39,3 +39,11 @@ weatherrmd.Rmd
 - Made into an interactive R dashboard rmd allowing user to input their values for the day and return a weather outcome. 
 - packages used in this project are rpart, tidyverse, caret, and shiny 
 - data set used for this is Weather Data.csv obtained from Kaggle 
+
+MedicalInsuranceChargesReg 
+- This is a polynomial regression model used to predict the medical insurance charges for any single person. 
+- The predictor values are smoker(yes,no), age(int), bmi(int) against response variable charges 
+- Data was manipulated to turn all binary values to 1 and 0 
+- Correlation plot used to find relationships amongst the variables against charges to use in model. 
+- Model achieves 74% accuracy 
+- Data taken from Kaggle 
