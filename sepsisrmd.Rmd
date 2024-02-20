@@ -1,0 +1,214 @@
+---
+title: "sepsis analysis"
+author: "Noah N"
+date: "2023-11-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/noahn/OneDrive/Documents/Personalprojects/sepsis_main")
+library(tidyverse)
+library(caret)
+#Load up the data
+sepsis_main<- data.frame(read.csv("primary.csv"))
+sepsis_val<- data.frame(read.csv("validation.csv"))
+sepsis_Korea<- data.frame(read.csv("new_country.csv"))
+```
+
+```{r summary, echo=FALSE, message=FALSE}
+#get a quick summary of the main data frame 
+summary(sepsis_main)
+which(sepsis_main$age_years == 0)
+# since age 0 could mean baby we will leave it in the age by years column 
+```
+
+```{r EDA, echo=FALSE, message=FALSE}
+library(plotly)
+#lets do some EDA 
+# check avg amount of episodes a person has that died vs didn't die 
+sepsis_graph<- sepsis_main
+sepsis_graph<-sepsis_graph%>% 
+  group_by(hospital_outcome_1alive_0dead)%>%
+  summarise(avg.episode = mean(episode_number))
+p<- ggplot(data = sepsis_graph, aes(x = hospital_outcome_1alive_0dead, y = avg.episode))+geom_bar(stat = "identity", position = "dodge", width = .25)
+ggplotly(p)
+# dead = 1.37 episodes , alive = 1.35 - not much variation :( 
+#episodes wont necessarily be a good predictor of death but if we combine age and episodes it might, lets try ages over 65 since the median is 68 and mean is 63, 65 should be  a a good starting point  
+sepsis_graph<- sepsis_main
+
+sepsis_graph<- sepsis_graph%>% 
+  filter(age_years > 64)%>%
+  group_by(hospital_outcome_1alive_0dead)%>%
+  summarise(avg.episode = mean(episode_number))
+p<- ggplot(data = sepsis_graph, aes(x = hospital_outcome_1alive_0dead, y = avg.episode))+geom_bar(stat = "identity", position = "dodge", width = .25)
+ggplotly(p)
+# what an odd find people 65 and older that died had on average fewer episodes than those who didn't now lets do younger 
+
+sepsis_graph<- sepsis_main
+
+sepsis_graph<- sepsis_graph%>% 
+  filter(age_years <= 64)%>%
+  group_by(hospital_outcome_1alive_0dead)%>%
+  summarise(avg.episode = mean(episode_number))
+p<- ggplot(data = sepsis_graph, aes(x = hospital_outcome_1alive_0dead, y = avg.episode))+geom_bar(stat = "identity", position = "dodge", width = .25)
+ggplotly(p)
+# here is the biggest difference we have seen so far via avg amount of episodes 
+#1.52 for dead and 1.34 for alive 
+# lets check the varaibility of gender in our data set and see if that plays a part 
+sepsis_main %>% count(sex_0male_1female)
+# of males - 57,973 
+# of female - 52231 , good amount of both lets see if that plays into sepsis affect - first lets see if one gender is affected more by episodes than the other 
+sepsis_graph<- sepsis_main
+
+sepsis_graph <- sepsis_graph%>% 
+  group_by(sex_0male_1female)%>%
+  summarise(avg.episode = mean(episode_number))
+p <- ggplot(data = sepsis_graph, aes(x = sex_0male_1female, y = avg.episode))+geom_bar(stat = "identity", position = "dodge", width = .25)
+ggplotly(p)
+
+# on average males have more episodes than females not a huge amount but in the case of sepsis every tenth counts since the highest amount of episodes we have is 5 
+
+
+```
+
+```{r create our model echo = FALSE , message=FALSE, comment=FALSE}
+# since from the EDA we deciphered that gender and Age do have the biggest impact on, number of avg # of episodes and death for each did not seem to be too different infact they were about the least far apart I got 
+
+# so for this I will be using Logistic regression which is common when predicting a binary output i.e. dead or alive - the data set is clean since i got it online from website 
+logistic.model<- glm(formula = hospital_outcome_1alive_0dead ~ age_years + sex_0male_1female, data = sepsis_main, family = binomial(link = "logit"))
+summary(logistic.model)
+# now the model is trained lets apply it to a new data set 
+sepsis_test <- sepsis_val
+#remove actual results from validation set and apply new set to model then we will compare 
+sepsis_test<- subset(sepsis_test, select = -hospital_outcome_1alive_0dead)
+# run model
+log.pred<- predict(logistic.model, newdata = sepsis_test, type = "response")
+head(log.pred)
+# since it isn't exaclty binary we will have to adjust the outputs here 
+summary(log.pred)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ #0.7617  0.8669  0.9028  0.9052  0.9428  0.9969 
+sepsis_val %>% count(hospital_outcome_1alive_0dead)
+#create threshold of previous data to find amount of dead people im doing this by using the actual values from the data and the % they make up of the data set i.e. they make up 18% so (.9969 - .7617) = .2352*.82 = .19286 -> .9969 - .19286 = .804 ~ .80 - doesnt seem to be very accurate lets take the average of .7176 + .9969/ 2 --> .85725 ~ .86, ended up being more innacurate - lets try .82  , about the same results as .80 - lets try lower .78, bout the same as .80, .79 achieves the highest accuracy with about 80.8% accuracy where as .80 has about 80.5% accuracy 
+threshold <- .79
+# so if greater than .8 its alive and less is dead 
+binary.pred<- ifelse(log.pred >= threshold, 1, 0)
+#now to check accuracy using a confusion matrix 
+conm<- confusionMatrix(table(binary.pred, sepsis_val$hospital_outcome_1alive_0dead))
+print(conm)
+accuracy<- conm$overall["Accuracy"]
+precision<- conm$byClass["Pos Pred Value"]
+recall<- conm$byClass["sensitivity"]
+cat("Accuracy", accuracy, "\n")
+cat("Precision", precision, "\n")
+cat("Recall", recall, "\n")
+# about 80% accuarcy not bad for how hard this data set actually is 
+# now what if i redo but without removing the actual data 
+```
+
+
+```{r xgboost}
+library(xgboost)
+library(pROC)
+# Now i am going to try and use an xgboost model to see if i can get a better result 
+
+
+xg.model<-xgboost(data = as.matrix(sepsis_main[-4]), nrounds = 1000, label = sepsis_main$hospital_outcome_1alive_0dead, objective = "binary:logistic", eval_metric = "aucpr", eta = 0.1, verbose = F)
+#create the boosting model 
+summary(xg.model)
+
+xgb_pred<-predict(xg.model, as.matrix(sepsis_val[-4]))
+
+xgb_preds<-round(xgb_pred, digits = 1)
+xgb_predd<- round(xgb_pred, digits = 0)
+test_con<-data.frame(outcome = sepsis_val$hospital_outcome_1alive_0dead, pred = xgb_preds, pred2 = xgb_predd)
+# since rounding is coming up with a clear distinction to find who lived and died since all values are too close to 1 I will have to scale all the values unrounded using under the curve fit to then decide threshold
+acfit<-roc(sepsis_val$hospital_outcome_1alive_0dead, xgb_pred)
+optimal.thresh<-coords(acfit, 'best', ret = "threshold")
+# now the optimal threshold has been determined 
+optimal.thresh # 0.9196374 
+
+binpred<-ifelse(xgb_pred>optimal.thresh[1,1], 1,0)
+test_con$binpred<-c(binpred)
+
+outcome<- as.numeric(test_con$outcome)
+binpred<- as.numeric(test_con$binpred)
+outcome<- factor(outcome)
+binpred<-factor(binpred)
+confm<- confusionMatrix(binpred, outcome)
+confm
+```
+```{r gradient boosting }
+library(gbm )
+sepsis_test$hospital_outcome_1alive_0dead<-NULL
+set.seed(400)
+#set for exact reproduction
+boosting<-gbm(sepsis_val$hospital_outcome_1alive_0dead ~., data = sepsis_val ,distribution = "bernoulli",n.trees = 10000, interaction.depth = 5, shrinkage = 0.005, cv.folds = 25 , verbose = F)
+boost<-predict(boosting,sepsis_test,n.trees = 1000)
+boost<-c(boost)
+#predict the model by creating new column "boost"
+
+# go back up and remake sepsis_test by setting equal to sepsis_val 
+sepsis_test<-sepsis_val
+#since output is not between 0-1 and one we use optimal threshold on a proc curve to find where it could best be split. 
+acfitt<-roc(sepsis_val$hospital_outcome_1alive_0dead, boost)
+#set the curves for the graph with actual vs fitted 
+optimal.threshh<-coords(acfitt, 'best', ret = "threshold")
+threshh <- round(optimal.threshh[1,1], digits = 3)
+
+#deploy the threshold model to find the best threshold to split at 
+binpredd<-ifelse(boost>threshh, 1, 0)
+#reset values in boost to binary based on if value is greater than or less than optimal threshold then confusion matrix 
+
+#confusion matrix doesnt like how format of how the numbers come out after an if else statement so have to reformat 
+binpredd<- factor(as.numeric(binpredd))
+actual<-factor(as.numeric(sepsis_val$hospital_outcome_1alive_0dead))
+#time to build confusion matrix 
+confm<-confusionMatrix(binpredd,actual)
+confm
+
+#findings - 1000 trees , 0.2 shrink , 10 k folds , interaction depth = 2, 42% accuracy
+#2 findings - 5000 trees, 0.1 shrink, 10 k folds, interaction depth = 2, 45% accuracy
+#3 findings - 5000 trees, 0.01 shrink, 10 k folds, interaction depth = 4, 44% accuracy 
+#4 findings - 5000 trees, 0.01 shrinkage, 20 k folds, interaction depth = 4, 47% accuracy 
+#% findings - 10000 trees, 0.005 shrinkage, 25 k folds, interaction depth = 5, 46% accuracy 
+# findings tell us that as we increase the parameters of our model the overall accuracy does not increase as much as we would hope again we have to remember this data set is very limited in the variables we have along with weak correlations between almost everything its hard to come to any suficient conclusions about sepsis and septic shock 
+
+#Through the three models tried( First time trying gradient boosting ) we did achieve a great 80% accuracy with the use of logistic regression which is impressive and very good towards the goal of helping with predicting death from sepsis. Another possible boosting model could be adaboosting like gradient boosting but much better at interacting with binary values(0,1). 
+
+```
+
+```{r Decision tree Decider}
+
+#make our tree instance 
+library(randomForest)
+set.seed(442)
+
+sepsis_forest<-randomForest(hospital_outcome_1alive_0dead ~.,data = sepsis_main, ntree = 1000, mtry = 3, nodesize = 5, importance = T)
+
+# now that the model ran we can do some processing on another data set to use for prediction 
+set.seed(142)
+
+sepsis_pred<-sepsis_val
+# there now its all preprocessed ready to be predicted but first we have to create a new df without the outcome column 
+sepsis.pred<-sepsis_pred 
+sepsis.pred$hospital_outcome_1alive_0dead<-NULL
+head(sepsis.pred)
+#perfect now we can predict then compare 
+tree_pred<-predict(sepsis_forest,sepsis.pred)
+summary(tree_pred) 
+# lets try using the mean as our decider for 0 or 1 so less = 0 and more = 1 
+pred_values<-ifelse(tree_pred>mean(tree_pred), 1, 0)
+cmatrix<- data.frame(pred = pred_values, actual = sepsis_pred$hospital_outcome_1alive_0dead)
+
+#confusion matrix time 
+pred<- as.factor(cmatrix$pred)
+actual<-as.factor(cmatrix$actual)
+cm<-confusionMatrix(pred, actual)
+cm
+```
+```{r grid search }
+#while the tree on its own was not incredibly accurate we can use grid search to help us find good paremeters for our trees 
+```
+
