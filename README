@@ -47,3 +47,9 @@ MedicalInsuranceChargesReg
 - Correlation plot used to find relationships amongst the variables against charges to use in model. 
 - Model achieves 74% accuracy 
 - Data taken from Kaggle 
+
+sepsisrmd.RMD 
+- Uses data about sepsis to with variables, age, gender, septic episodes, dead(Y/N) 
+- Uses logistic regression with 80% accuracy 
+- Uses xgboost 52% accuracy 
+- Uses decision tree with 50% accuracy 
